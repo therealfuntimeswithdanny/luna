@@ -1,0 +1,11 @@
+name = "luna-file-converter-worker"
+main = "src/index.ts"
+compatibility_date = "2026-02-22"
+
+[vars]
+BUCKET_PUBLIC_HOST = "luna-cdn.madebydanny.uk"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "YOUR_R2_BUCKET_NAME"
+preview_bucket_name = "YOUR_R2_BUCKET_NAME"
