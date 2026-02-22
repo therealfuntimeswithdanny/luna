@@ -26,6 +26,28 @@ interface Env {
 const IMAGE_FORMATS = ["png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "avif"];
 const VIDEO_FORMATS = ["mp4", "webm", "mov", "avi", "mkv", "gif"];
 const GIF_FORMATS = ["gif", "mp4", "webm", "apng"];
+const FFMPEG_VENDOR_ASSETS: Record<string, { url: string; contentType: string }> = {
+  "/vendor/ffmpeg/ffmpeg.js": {
+    url: "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js",
+    contentType: "text/javascript; charset=utf-8",
+  },
+  "/vendor/ffmpeg/util.js": {
+    url: "https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/esm/index.js",
+    contentType: "text/javascript; charset=utf-8",
+  },
+  "/vendor/ffmpeg/worker.js": {
+    url: "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js",
+    contentType: "text/javascript; charset=utf-8",
+  },
+  "/vendor/ffmpeg/ffmpeg-core.js": {
+    url: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js",
+    contentType: "text/javascript; charset=utf-8",
+  },
+  "/vendor/ffmpeg/ffmpeg-core.wasm": {
+    url: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm",
+    contentType: "application/wasm",
+  },
+};
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -35,6 +57,10 @@ export default {
       return new Response(renderAppHtml(), {
         headers: buildHtmlHeaders(),
       });
+    }
+
+    if (request.method === "GET" && url.pathname in FFMPEG_VENDOR_ASSETS) {
+      return handleVendorAsset(url.pathname);
     }
 
     if (request.method === "POST" && url.pathname === "/api/upload") {
@@ -225,9 +251,9 @@ function buildHtmlHeaders(): Headers {
     "content-security-policy",
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net blob:",
-      "worker-src 'self' blob: https://cdn.jsdelivr.net",
-      "connect-src 'self' https://cdn.jsdelivr.net",
+      "script-src 'self' 'unsafe-inline' blob:",
+      "worker-src 'self' blob:",
+      "connect-src 'self'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "media-src 'self' blob: https:",
@@ -237,6 +263,24 @@ function buildHtmlHeaders(): Headers {
     ].join("; "),
   );
   return headers;
+}
+
+async function handleVendorAsset(pathname: string): Promise<Response> {
+  const asset = FFMPEG_VENDOR_ASSETS[pathname];
+  if (!asset) {
+    return json({ error: "Asset not found" }, 404);
+  }
+
+  const upstream = await fetch(asset.url);
+  if (!upstream.ok) {
+    return new Response("Failed to load vendor asset", { status: 502 });
+  }
+
+  const headers = new Headers();
+  headers.set("content-type", asset.contentType);
+  headers.set("cache-control", "public, max-age=86400");
+  headers.set("x-content-type-options", "nosniff");
+  return new Response(upstream.body, { status: 200, headers });
 }
 
 function renderAppHtml(): string {
@@ -465,8 +509,8 @@ function renderAppHtml(): string {
   </main>
 
   <script type="module">
-    import { FFmpeg } from "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js";
-    import { fetchFile, toBlobURL } from "https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/esm/index.js";
+    import { FFmpeg } from "/vendor/ffmpeg/ffmpeg.js";
+    import { fetchFile, toBlobURL } from "/vendor/ffmpeg/util.js";
 
     const imageFormats = ${JSON.stringify(IMAGE_FORMATS)};
     const videoFormats = ${JSON.stringify(VIDEO_FORMATS)};
@@ -552,15 +596,14 @@ function renderAppHtml(): string {
     async function ensureFFmpegLoaded() {
       if (ffmpegLoaded) return;
       setStatus("Loading conversion engine (first run takes longer)...");
-      const baseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm";
       const workerURL = await toBlobURL(
-        "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js",
+        "/vendor/ffmpeg/worker.js",
         "text/javascript"
       );
       await ffmpeg.load({
         workerURL,
-        coreURL: await toBlobURL(baseURL + "/ffmpeg-core.js", "text/javascript"),
-        wasmURL: await toBlobURL(baseURL + "/ffmpeg-core.wasm", "application/wasm")
+        coreURL: await toBlobURL("/vendor/ffmpeg/ffmpeg-core.js", "text/javascript"),
+        wasmURL: await toBlobURL("/vendor/ffmpeg/ffmpeg-core.wasm", "application/wasm")
       });
       ffmpegLoaded = true;
     }
