@@ -7,5 +7,5 @@ BUCKET_PUBLIC_HOST = "luna-cdn.madebydanny.uk"
 
 [[r2_buckets]]
 binding = "R2_BUCKET"
-luna = "YOUR_R2_BUCKET_NAME"
-luna = "YOUR_R2_BUCKET_NAME"
+bucket_name = "luna" # your real R2 bucket name
+preview_bucket_name = "luna" # usually same bucket for preview
