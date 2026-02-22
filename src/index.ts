@@ -33,7 +33,7 @@ export default {
 
     if (request.method === "GET" && url.pathname === "/") {
       return new Response(renderAppHtml(), {
-        headers: { "content-type": "text/html; charset=utf-8" },
+        headers: buildHtmlHeaders(),
       });
     }
 
@@ -216,6 +216,27 @@ function json(data: unknown, status = 200): Response {
     status,
     headers: { "content-type": "application/json; charset=utf-8" },
   });
+}
+
+function buildHtmlHeaders(): Headers {
+  const headers = new Headers();
+  headers.set("content-type", "text/html; charset=utf-8");
+  headers.set(
+    "content-security-policy",
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net blob:",
+      "worker-src 'self' blob: https://cdn.jsdelivr.net",
+      "connect-src 'self' https://cdn.jsdelivr.net",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https:",
+      "media-src 'self' blob: https:",
+      "font-src 'self' data:",
+      "base-uri 'none'",
+      "frame-ancestors 'none'",
+    ].join("; "),
+  );
+  return headers;
 }
 
 function renderAppHtml(): string {
@@ -532,7 +553,12 @@ function renderAppHtml(): string {
       if (ffmpegLoaded) return;
       setStatus("Loading conversion engine (first run takes longer)...");
       const baseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm";
+      const workerURL = await toBlobURL(
+        "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js",
+        "text/javascript"
+      );
       await ffmpeg.load({
+        workerURL,
         coreURL: await toBlobURL(baseURL + "/ffmpeg-core.js", "text/javascript"),
         wasmURL: await toBlobURL(baseURL + "/ffmpeg-core.wasm", "application/wasm")
       });
